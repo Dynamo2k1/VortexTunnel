@@ -27,7 +27,7 @@ This **Advanced Python Proxy** is a high-performance TCP/HTTP(S) proxy with **TL
 Ensure you have **Python 3.8+** installed. Then, install dependencies:  
 
 ```bash
-pip install dnspython
+pip install dnspython websocket-client
 ```
 
 ### 🔹 Clone the Repository  
