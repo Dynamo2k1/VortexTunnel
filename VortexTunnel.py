@@ -7,9 +7,7 @@ import argparse
 import ssl
 import select
 import random
-import dns.resolver
-
-from websocket import create_connection
+import dns.resolver  # pip install dnspython
 from typing import Optional, Callable
 
 # Logging Configuration
@@ -24,22 +22,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("TCPProxy")
 
-# User-Agent rotation list and extra headers
+# List of User-Agents to rotate
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.198 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.121 Safari/537.36"
 ]
 EXTRA_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive"
 }
 
+
 def modify_headers(data: bytes, rotate_ua: bool) -> bytes:
-    """Modify HTTP headers to mimic a real browser, optionally rotating User-Agent"""
+    """Modify HTTP headers to mimic a real browser, optionally rotating the User-Agent."""
     try:
-        # Separate header and body using CRLF CRLF as the delimiter
         header_end = data.find(b"\r\n\r\n")
         if header_end == -1:
             return data
@@ -70,8 +69,9 @@ def modify_headers(data: bytes, rotate_ua: bool) -> bytes:
         logger.error(f"Header modification error: {e}")
         return data
 
+
 def secure_dns_lookup(domain: str) -> str:
-    """Resolve a domain using Cloudflare's DoH via dnspython"""
+    """Resolve a domain using Cloudflare's DNS (DoH) via dnspython."""
     try:
         resolver = dns.resolver.Resolver()
         resolver.nameservers = ["1.1.1.1"]
@@ -81,17 +81,9 @@ def secure_dns_lookup(domain: str) -> str:
         logger.error(f"DoH lookup error for {domain}: {e}")
         return domain
 
-# Placeholder for WebSockets proxy support
-def ws_proxy(target_url: str) -> str:
-    """Establish a WebSocket connection to target_url (placeholder)"""
-    # Uncomment if you install websocket-client
-    ws = create_connection(target_url)
-    ws.send("GET / HTTP/1.1\r\nHost: " + target_url + "\r\n\r\n")
-    return ws.recv()
-    return ""
 
 class TCPProxy:
-    """Production-grade TCP Proxy with proper browser support and advanced features"""
+    """Production-grade TCP Proxy with advanced browser-mimicking features"""
 
     def __init__(
         self,
@@ -101,14 +93,14 @@ class TCPProxy:
         remote_port: int,
         ssl_enabled: bool = False,
         ssl_skip_verify: bool = False,
-        timeout: int = 30,  # Increased timeout for browser operations
+        timeout: int = 30,
         backlog: int = 10,
         request_handler: Optional[Callable[[bytes], bytes]] = None,
         response_handler: Optional[Callable[[bytes], bytes]] = None,
         save_log: Optional[str] = None,
         rotate_ua: bool = False,
         use_doh: bool = False,
-        use_ws: bool = False,  # WebSockets tunneling (placeholder)
+        use_ws: bool = False,  # Placeholder for WebSockets tunneling
     ):
         self.local_host = local_host
         self.local_port = local_port
@@ -126,8 +118,28 @@ class TCPProxy:
         self.use_doh = use_doh
         self.use_ws = use_ws
 
+    def get_tls_context(self) -> ssl.SSLContext:
+        """Create and configure a TLS context to mimic a modern browser (e.g., Chrome)."""
+        context = ssl.create_default_context()
+        if self.ssl_skip_verify:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+        # Set cipher suites similar to Chrome's
+        try:
+            context.set_ciphers(
+                "ECDHE-ECDSA-AES128-GCM-SHA256:"
+                "ECDHE-RSA-AES128-GCM-SHA256:"
+                "ECDHE-ECDSA-AES256-GCM-SHA384:"
+                "ECDHE-RSA-AES256-GCM-SHA384:"
+                "ECDHE-ECDSA-CHACHA20-POLY1305:"
+                "ECDHE-RSA-CHACHA20-POLY1305"
+            )
+        except Exception as e:
+            logger.error(f"Error setting ciphers: {e}")
+        return context
+
     def start(self):
-        """Start the proxy server with proper resource management"""
+        """Start the proxy server with proper resource management."""
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -159,9 +171,8 @@ class TCPProxy:
             logger.info("Proxy server stopped.")
 
     def handle_connection(self, client_socket: socket.socket):
-        """Handle connection with proper error handling"""
+        """Handle incoming connection with proper error handling."""
         try:
-            # Peek at the first bytes to detect HTTPS CONNECT
             data = client_socket.recv(4096, socket.MSG_PEEK)
             if not data:
                 return
@@ -178,7 +189,7 @@ class TCPProxy:
                 pass
 
     def handle_https_tunnel(self, client_socket: socket.socket):
-        """Handle HTTPS CONNECT requests properly"""
+        """Handle HTTPS CONNECT requests properly."""
         remote_socket = None
         try:
             data = client_socket.recv(4096)
@@ -188,20 +199,11 @@ class TCPProxy:
             if self.use_doh:
                 target_host = secure_dns_lookup(target_host)
             logger.info(f"Establishing HTTPS tunnel to {target_host}:{target_port}")
-            remote_socket = socket.create_connection(
-                (target_host, target_port),
-                timeout=self.timeout
-            )
+            remote_socket = socket.create_connection((target_host, target_port), timeout=self.timeout)
             client_socket.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             if target_port == 443:
-                context = ssl.create_default_context()
-                if self.ssl_skip_verify:
-                    context.check_hostname = False
-                    context.verify_mode = ssl.CERT_NONE
-                remote_socket = context.wrap_socket(
-                    remote_socket,
-                    server_hostname=target_host
-                )
+                context = self.get_tls_context()
+                remote_socket = context.wrap_socket(remote_socket, server_hostname=target_host)
             self.forward_traffic(client_socket, remote_socket)
         except Exception as e:
             logger.error(f"HTTPS tunnel error: {e}")
@@ -213,27 +215,17 @@ class TCPProxy:
                     pass
 
     def handle_http_proxy(self, client_socket: socket.socket, initial_data: bytes):
-        """Handle regular HTTP proxying"""
+        """Handle regular HTTP proxying."""
         remote_socket = None
         try:
-            # Optionally use DoH for remote resolution
             remote_host = self.remote_host
             if self.use_doh:
                 remote_host = secure_dns_lookup(self.remote_host)
-            remote_socket = socket.create_connection(
-                (remote_host, self.remote_port),
-                timeout=self.timeout
-            )
+            remote_socket = socket.create_connection((remote_host, self.remote_port), timeout=self.timeout)
             if self.ssl_enabled:
-                context = ssl.create_default_context()
-                if self.ssl_skip_verify:
-                    context.check_hostname = False
-                    context.verify_mode = ssl.CERT_NONE
-                remote_socket = context.wrap_socket(
-                    remote_socket,
-                    server_hostname=self.remote_host
-                )
-            # Modify headers if rotate_ua is enabled
+                context = self.get_tls_context()
+                remote_socket = context.wrap_socket(remote_socket, server_hostname=self.remote_host)
+            # Modify headers to mimic a browser if rotate_ua is enabled.
             modified_data = modify_headers(initial_data, self.rotate_ua)
             remote_socket.sendall(modified_data)
             self.forward_traffic(client_socket, remote_socket)
@@ -256,7 +248,7 @@ class TCPProxy:
             logger.error(f"Failed to save traffic log: {e}")
 
     def forward_traffic(self, client_sock: socket.socket, remote_sock: socket.socket):
-        """Reliable data forwarding with select and logging"""
+        """Reliable data forwarding with select, logging, and header processing."""
         sockets = [client_sock, remote_sock]
         while True:
             try:
@@ -293,7 +285,7 @@ class TCPProxy:
 
     @staticmethod
     def hexdump(data: bytes, direction: str):
-        """Advanced hexdump implementation with concise output"""
+        """Advanced hexdump implementation with concise output."""
         hex_str = ' '.join(f"{b:02x}" for b in data)
         ascii_str = ''.join(chr(b) if 32 <= b < 127 else '.' for b in data)
         logger.debug(f"{direction} HEX: {hex_str[:64]}{'...' if len(hex_str) > 64 else ''}")
@@ -301,8 +293,8 @@ class TCPProxy:
 
 
 def parse_args():
-    """Improved argument parsing with additional features"""
-    parser = argparse.ArgumentParser(description="Production TCP/HTTP Proxy with advanced features")
+    """Improved argument parsing with advanced feature flags."""
+    parser = argparse.ArgumentParser(description="Production TCP/HTTP Proxy with advanced browser-mimicking features")
     parser.add_argument("local_host", help="Local listening host")
     parser.add_argument("local_port", type=int, help="Local listening port")
     parser.add_argument("remote_host", help="Remote target host")
@@ -311,9 +303,9 @@ def parse_args():
     parser.add_argument("-i", "--insecure", action="store_true", help="Disable SSL certificate verification")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
     parser.add_argument("-s", "--save-log", help="File to save intercepted traffic", type=str, default=None)
-    parser.add_argument("--rotate-ua", action="store_true", help="Enable rotating User-Agent header")
-    parser.add_argument("--doh", action="store_true", help="Use DNS over HTTPS for resolution")
-    parser.add_argument("--ws", action="store_true", help="Use WebSockets for tunneling (placeholder)")
+    parser.add_argument("-r","--rotate-ua", action="store_true", help="Enable rotating User-Agent header")
+    parser.add_argument("-d", "--doh", action="store_true", help="Use DNS over HTTPS for resolution")
+    parser.add_argument("-w", "--ws", action="store_true", help="Use WebSockets for tunneling (placeholder)")
     return parser.parse_args()
 
 
