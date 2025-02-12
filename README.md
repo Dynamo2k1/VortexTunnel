@@ -142,9 +142,7 @@ This project is licensed under the **MIT License** – feel free to modify and d
 ---
 
 ## 📬 Contact  
-📧 **Email:** your_email@example.com  
-🐦 **Twitter:** [@yourhandle](https://twitter.com/)  
-🌍 **Website:** [yourwebsite.com](https://yourwebsite.com)  
+📧 **Email:** dynamo89247@gmail.com 
 
 ---
 
