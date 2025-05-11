@@ -33,7 +33,7 @@ pip install dnspython websocket-client
 ### 🔹 Clone the Repository  
 ```bash
 git clone https://github.com/Dynamo2k1/VortexTunnel.git
-cd advanced-python-proxy
+cd VortexTunnel
 ```
 
 ---
@@ -44,31 +44,31 @@ cd advanced-python-proxy
 Run the proxy server with default settings:  
 
 ```bash
-python proxy.py 127.0.0.1 8080 example.com 80
+python VortexTunnel.py 127.0.0.1 8080 example.com 80
 ```
 
 ### 🔹 Enable HTTPS Proxying  
 To tunnel HTTPS traffic, use:  
 ```bash
-python proxy.py 127.0.0.1 8080 example.com 443 --ssl
+python VortexTunnel.py 127.0.0.1 8080 example.com 443 --ssl
 ```
 
 ### 🔹 Use DNS over HTTPS (DoH)  
 To enable **secure DNS resolution**, run:  
 ```bash
-python proxy.py 127.0.0.1 8080 example.com 80 --doh
+python VortexTunnel.py 127.0.0.1 8080 example.com 80 --doh
 ```
 
 ### 🔹 Save Traffic Logs  
 To store all request/response logs in a file:  
 ```bash
-python proxy.py 127.0.0.1 8080 example.com 80 --save-log traffic.log
+python VortexTunnel.py 127.0.0.1 8080 example.com 80 --save-log traffic.log
 ```
 
 ### 🔹 Rotate User-Agent Headers  
 Bypass bot detection by enabling **randomized User-Agent headers**:  
 ```bash
-python proxy.py 127.0.0.1 8080 example.com 80 --rotate-ua
+python VortexTunnel.py 127.0.0.1 8080 example.com 80 --rotate-ua
 ```
 
 ---
