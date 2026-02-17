@@ -5,7 +5,7 @@ import threading
 import logging
 import argparse
 import ssl
-
+import select
 import random
 import dns.resolver  # pip install dnspython
 from typing import Optional, Callable
